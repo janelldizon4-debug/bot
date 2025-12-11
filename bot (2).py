@@ -1,12 +1,94 @@
 import telebot
 from telebot import types
+import json
+import threading
+import time
+import re
 
 TOKEN = "8389171340:AAGflq0Tzt2hmT0AZvKLD859Rw9IPOFggmw"
 OWNER_ID = 6784382795
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
 # =====================================================
-#  WELCOME & GOODBYE  (WORKING)
+#  REGISTERED USERS STORED INSIDE THIS FILE
+# =====================================================
+
+registered_users = [6784382795]   # <-- Your ID is always first
+
+
+# =====================================================
+#  SAVE UPDATED USER LIST INTO THIS SAME FILE
+# =====================================================
+
+def update_script():
+    """Rewrite THIS FILE with updated registered_users."""
+    with open(__file__, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    new_list = json.dumps(registered_users)
+
+    updated = re.sub(
+        r"registered_users = \[.*?\]",
+        f"registered_users = {new_list}",
+        content,
+        flags=re.DOTALL
+    )
+
+    with open(__file__, "w", encoding="utf-8") as f:
+        f.write(updated)
+
+
+# =====================================================
+#  CHECK OWNER
+# =====================================================
+
+def is_owner(uid):
+    return uid == OWNER_ID
+
+
+# =====================================================
+#  AUTO-BAN UNREGISTERED USERS
+# =====================================================
+
+@bot.chat_member_handler()
+def on_user_join(update: types.ChatMemberUpdated):
+
+    user = update.new_chat_member.user
+
+    if update.new_chat_member.status == "member":
+        if user.id not in registered_users:
+
+            # Ban immediately
+            try:
+                bot.ban_chat_member(update.chat.id, user.id)
+            except:
+                pass
+
+            # Notify owner
+            bot.send_message(
+                OWNER_ID,
+                f"⛔ <b>Unregistered user banned</b>\n"
+                f"Name: {user.first_name}\n"
+                f"ID: {user.id}"
+            )
+
+
+# =====================================================
+#  DELETE MESSAGES FROM UNREGISTERED USERS
+# =====================================================
+
+@bot.message_handler(func=lambda m: True, content_types=["text", "photo", "video", "document", "audio"])
+def delete_unregistered(message):
+    if message.from_user.id not in registered_users:
+        try:
+            bot.delete_message(message.chat.id, message.id)
+        except:
+            pass
+        return
+
+
+# =====================================================
+#  WELCOME & GOODBYE
 # =====================================================
 
 @bot.message_handler(content_types=["new_chat_members"])
@@ -16,237 +98,130 @@ def welcome(message):
 
 @bot.message_handler(content_types=["left_chat_member"])
 def goodbye(message):
-    left = message.left_chat_member
-    bot.send_message(message.chat.id, f"👋 Goodbye <b>{left.first_name}</b>!")
+    bot.send_message(message.chat.id, f"👋 Goodbye <b>{message.left_chat_member.first_name}</b>!")
+
 
 # =====================================================
-#  BOT ADDED TO GROUP LOG  (WORKING)
+#  BOT ADDED TO GROUP LOG
 # =====================================================
 
 @bot.my_chat_member_handler()
-def added_to_group(update: types.ChatMemberUpdated):
+def bot_added(update: types.ChatMemberUpdated):
+
     old = update.old_chat_member.status
     new = update.new_chat_member.status
 
     if old in ["left", "kicked"] and new in ["member", "administrator"]:
-        group_name = update.chat.title
-        group_id = update.chat.id
+
+        chat = update.chat
+        user = update.from_user
 
         try:
-            link = bot.create_chat_invite_link(group_id).invite_link
+            link = bot.create_chat_invite_link(chat.id).invite_link
         except:
-            link = "Bot is not admin — Cannot fetch link"
-
-        user = update.from_user
+            link = "Bot not admin"
 
         bot.send_message(
             OWNER_ID,
-            f"🤖 Bot Added to Group!\n\n"
-            f"👤 Added by: {user.first_name} (@{user.username})\n"
-            f"🆔 {user.id}\n\n"
-            f"👥 Group: {group_name}\n"
-            f"🆔 {group_id}\n"
-            f"🔗 {link}"
+            f"🤖 <b>Bot added to a new group</b>\n\n"
+            f"👥 {chat.title}\n"
+            f"🆔 {chat.id}\n"
+            f"🔗 {link}\n\n"
+            f"👤 Added by {user.first_name} (@{user.username})\n"
+            f"🆔 {user.id}"
         )
 
-# =====================================================
-#  /code MENU  (WORKING)
-# =====================================================
-
-@bot.message_handler(commands=["code"])
-def code_menu(message):
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🎂 Birthday", "🎁 Surprise")
-    bot.send_message(message.chat.id, "Choose an option:", reply_markup=kb)
 
 # =====================================================
-#  BIRTHDAY FLOW  (FULLY WORKING)
+#  OWNER COMMANDS
 # =====================================================
 
-@bot.message_handler(commands=["birthday"])
-@bot.message_handler(func=lambda m: m.text == "🎂 Birthday")
-def birthday_start(message):
-    bot.send_message(message.chat.id, "🎂 Enter Celebrant Name:", reply_markup=types.ReplyKeyboardRemove())
-    bot.register_next_step_handler(message, birthday_name)
+@bot.message_handler(commands=["adduser"])
+def add_user(message):
+    if not is_owner(message.from_user.id):
+        return
 
-def birthday_name(msg):
-    name = msg.text
-    bot.send_message(msg.chat.id, "📅 Enter Birthday Date:")
-    bot.register_next_step_handler(msg, birthday_date, name)
+    try:
+        uid = int(message.text.split()[1])
+    except:
+        bot.send_message(message.chat.id, "❌ Usage: /adduser <id>")
+        return
 
-def birthday_date(msg, name):
-    date = msg.text
-    bot.send_message(msg.chat.id, "🎉 Enter Age:")
-    bot.register_next_step_handler(msg, birthday_age, name, date)
+    if uid not in registered_users:
+        registered_users.append(uid)
+        update_script()
 
-def birthday_age(msg, name, date):
-    age = msg.text
-    bot.send_message(
-        msg.chat.id,
-        "🖼 Upload photo using this link:\n"
-        "https://host-image-puce.vercel.app/\n\n"
-        "Send the photo link here:"
-    )
-    bot.register_next_step_handler(msg, birthday_image, name, date, age)
+    bot.send_message(message.chat.id, f"✅ User {uid} added.")
 
-def birthday_image(msg, name, date, age):
-    image = msg.text
-    bot.send_message(msg.chat.id, "💌 Enter your Birthday Message:")
-    bot.register_next_step_handler(msg, birthday_generate, name, date, age, image)
 
-def birthday_generate(msg, name, date, age, image):
-    message_text = msg.text
+@bot.message_handler(commands=["removeuser"])
+def remove_user(message):
+    if not is_owner(message.from_user.id):
+        return
 
-    html = f"""
-<html>
-<body style="font-family:Arial; background:#ffe6ee; margin:0; padding:20px;">
-<center>
+    try:
+        uid = int(message.text.split()[1])
+    except:
+        bot.send_message(message.chat.id, "❌ Usage: /removeuser <id>")
+        return
 
-<!-- Logo Section -->
-<img src="{image}" width="180" style="border-radius:15px; margin-bottom:20px;">
+    if uid in registered_users and uid != OWNER_ID:
+        registered_users.remove(uid)
+        update_script()
 
-<!-- Curved Bold Happy Birthday Text -->
-<h1 style="
-    font-size:28px;
-    font-weight:bold;
-    color:#ff4da6;
-    font-family: 'Comic Sans MS', 'Verdana', cursive;
-    margin:0;
-">
-🎉 HAPPY BIRTHDAY <br> {name.upper()}! 🎉
-</h1>
+    bot.send_message(message.chat.id, f"🗑 Removed {uid}")
 
-<!-- Age Highlight -->
-<h2 style="
-    color:#d63384;
-    font-size:22px;
-    margin-top:10px;
-">
-🎂 {age} Years Old
-</h2>
 
-<!-- Info Box -->
-<div style="
-    background:white;
-    padding:15px;
-    border-radius:12px;
-    width:90%;
-    margin-top:15px;
-    box-shadow:0 0 10px rgba(0,0,0,0.1);
-">
-<p style="font-size:16px; margin:5px 0;"><b>🌟 Name:</b> {name}</p>
-<p style="font-size:16px; margin:5px 0;"><b>📅 Birthday:</b> {date}</p>
-</div>
+@bot.message_handler(commands=["listusers"])
+def list_users(message):
+    if not is_owner(message.from_user.id):
+        return
 
-<!-- Message Box -->
-<div style="
-    background:white;
-    padding:18px;
-    border-radius:12px;
-    width:90%;
-    margin-top:20px;
-    box-shadow:0 0 10px rgba(0,0,0,0.1);
-">
-<p style="font-size:18px; color:#ff4da6; margin:0;"><b>💌 Message:</b></p>
-<p style="font-size:16px; margin-top:8px;">{message_text}</p>
-</div>
+    text = "📜 <b>Registered Users</b>\n\n"
+    for uid in registered_users:
+        text += f"🆔 {uid}\n"
 
-</center>
-</body>
-</html>
-"""
+    bot.send_message(message.chat.id, text)
 
-    filename = f"birthday_{name}.html"
-    with open(filename, "w", encoding="utf-8") as f: f.write(html)
-
-    # Send to user
-    with open(filename, "rb") as f:
-        bot.send_document(msg.chat.id, f, caption="🎂 Birthday Card Generated")
-
-    # Notify owner
-    with open(filename, "rb") as f:
-        bot.send_document(
-            OWNER_ID, f,
-            caption=f"🎂 Birthday card used by {msg.from_user.first_name} (@{msg.from_user.username})"
-        )
 
 # =====================================================
-#  SURPRISE FLOW  (FULLY WORKING)
+#  GROUP LOCK SYSTEM
 # =====================================================
 
-@bot.message_handler(commands=["surprise"])
-@bot.message_handler(func=lambda m: m.text == "🎁 Surprise")
-def surprise_start(message):
-    bot.send_message(message.chat.id, "🎁 Enter Name:", reply_markup=types.ReplyKeyboardRemove())
-    bot.register_next_step_handler(message, surprise_name)
+def unlock_group(chat_id):
+    bot.send_message(chat_id, "🔓 Group unlocked!")
 
-def surprise_name(msg):
-    name = msg.text
-    bot.send_message(
-        msg.chat.id,
-        "🖼 Upload photo here:\nhttps://host-image-puce.vercel.app/\n\n"
-        "Send the photo link:"
-    )
-    bot.register_next_step_handler(msg, surprise_image, name)
+    try:
+        bot.set_chat_permissions(chat_id, types.ChatPermissions(can_send_messages=True))
+    except:
+        pass
 
-def surprise_image(msg, name):
-    image = msg.text
-    bot.send_message(msg.chat.id, "💌 Enter Your Special Message:")
-    bot.register_next_step_handler(msg, surprise_generate, name, image)
 
-def surprise_generate(msg, name, image):
-    message_text = msg.text
+@bot.message_handler(commands=["settime"])
+def lock_group(message):
+    if not is_owner(message.from_user.id):
+        return
 
-    html = f"""
-<html>
-<body style="font-family:Arial; background:#e3f6ff; margin:0; padding:20px;">
-<center>
+    try:
+        duration = message.text.split()[1]
+    except:
+        bot.send_message(message.chat.id, "❌ Usage: /settime <10m|1h|2h>")
+        return
 
-<!-- Logo or Photo -->
-<img src="{image}" width="180" style="border-radius:15px; margin-bottom:20px;">
+    value = int(duration[:-1])
+    unit = duration[-1]
 
-<!-- Curved Bold Surprise Text -->
-<h1 style="
-    font-size:28px;
-    font-weight:bold;
-    color:#008CFF;
-    font-family: 'Comic Sans MS', 'Verdana', cursive;
-    margin:0;
-">
-🎁 A LITTLE SURPRISE FOR <br> {name.upper()}! 🎁
-</h1>
+    seconds = value * 60 if unit == "m" else value * 3600
 
-<!-- Message Box -->
-<div style="
-    background:white;
-    padding:18px;
-    border-radius:12px;
-    width:90%;
-    margin-top:20px;
-    box-shadow:0 0 10px rgba(0,0,0,0.1);
-">
-<p style="font-size:18px; color:#008CFF; margin:0;"><b>💌 Message:</b></p>
-<p style="font-size:16px; margin-top:8px;">{message_text}</p>
-</div>
+    bot.send_message(message.chat.id, f"🔒 Group locked for {duration}")
 
-</center>
-</body>
-</html>
-"""
+    try:
+        bot.set_chat_permissions(message.chat.id, types.ChatPermissions(can_send_messages=False))
+    except:
+        pass
 
-    filename = f"surprise_{name}.html"
-    with open(filename, "w", encoding="utf-8") as f: f.write(html)
+    threading.Timer(seconds, unlock_group, args=[message.chat.id]).start()
 
-    # Send to user
-    with open(filename, "rb") as f:
-        bot.send_document(msg.chat.id, f, caption="🎁 Surprise Card Generated")
-
-    # Notify owner
-    with open(filename, "rb") as f:
-        bot.send_document(
-            OWNER_ID, f,
-            caption=f"🎁 Surprise card used by {msg.from_user.first_name} (@{msg.from_user.username})"
-        )
 
 # =====================================================
 #  START
@@ -254,7 +229,8 @@ def surprise_generate(msg, name, image):
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    bot.send_message(message.chat.id, "🤖 Bot Activated!\nUse /code to begin.")
+    bot.send_message(message.chat.id, "🤖 Security Bot Activated.")
+
 
 # =====================================================
 #  RUN BOT
