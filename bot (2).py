@@ -99,16 +99,58 @@ def birthday_generate(msg, name, date, age, image):
 
     html = f"""
 <html>
-<body style='font-family:Arial;background:#ffe7f0;padding:20px;'>
+<body style="font-family:Arial; background:#ffe6ee; margin:0; padding:20px;">
 <center>
-<h1 style='color:#ff4da6;'>🎉 HAPPY BIRTHDAY {name.upper()}! 🎉</h1>
-<img src='{image}' width='250' style='border-radius:15px;'><br><br>
-<h3>🌟 Name: {name}</h3>
-<h3>🎂 Age: {age}</h3>
-<h3>📅 Birthday: {date}</h3>
-<div style='background:white;padding:15px;border-radius:10px;width:80%;'>
-<b>💌 Message:</b><br>{message_text}
+
+<!-- Logo Section -->
+<img src="{image}" width="180" style="border-radius:15px; margin-bottom:20px;">
+
+<!-- Curved Bold Happy Birthday Text -->
+<h1 style="
+    font-size:28px;
+    font-weight:bold;
+    color:#ff4da6;
+    font-family: 'Comic Sans MS', 'Verdana', cursive;
+    margin:0;
+">
+🎉 HAPPY BIRTHDAY <br> {name.upper()}! 🎉
+</h1>
+
+<!-- Age Highlight -->
+<h2 style="
+    color:#d63384;
+    font-size:22px;
+    margin-top:10px;
+">
+🎂 {age} Years Old
+</h2>
+
+<!-- Info Box -->
+<div style="
+    background:white;
+    padding:15px;
+    border-radius:12px;
+    width:90%;
+    margin-top:15px;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+">
+<p style="font-size:16px; margin:5px 0;"><b>🌟 Name:</b> {name}</p>
+<p style="font-size:16px; margin:5px 0;"><b>📅 Birthday:</b> {date}</p>
 </div>
+
+<!-- Message Box -->
+<div style="
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    width:90%;
+    margin-top:20px;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+">
+<p style="font-size:18px; color:#ff4da6; margin:0;"><b>💌 Message:</b></p>
+<p style="font-size:16px; margin-top:8px;">{message_text}</p>
+</div>
+
 </center>
 </body>
 </html>
@@ -157,13 +199,36 @@ def surprise_generate(msg, name, image):
 
     html = f"""
 <html>
-<body style='font-family:Arial;background:#e3f6ff;padding:20px;'>
+<body style="font-family:Arial; background:#e3f6ff; margin:0; padding:20px;">
 <center>
-<h1 style='color:#008cff;'>🎁 A SURPRISE FOR {name.upper()}!</h1>
-<img src='{image}' width='250' style='border-radius:15px;'><br><br>
-<div style='background:white;padding:15px;border-radius:10px;width:80%;'>
-<b>💌 Message:</b><br>{message_text}
+
+<!-- Logo or Photo -->
+<img src="{image}" width="180" style="border-radius:15px; margin-bottom:20px;">
+
+<!-- Curved Bold Surprise Text -->
+<h1 style="
+    font-size:28px;
+    font-weight:bold;
+    color:#008CFF;
+    font-family: 'Comic Sans MS', 'Verdana', cursive;
+    margin:0;
+">
+🎁 A LITTLE SURPRISE FOR <br> {name.upper()}! 🎁
+</h1>
+
+<!-- Message Box -->
+<div style="
+    background:white;
+    padding:18px;
+    border-radius:12px;
+    width:90%;
+    margin-top:20px;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+">
+<p style="font-size:18px; color:#008CFF; margin:0;"><b>💌 Message:</b></p>
+<p style="font-size:16px; margin-top:8px;">{message_text}</p>
 </div>
+
 </center>
 </body>
 </html>
