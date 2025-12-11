@@ -2,155 +2,204 @@ import telebot
 from telebot import types
 
 TOKEN = "8389171340:AAGflq0Tzt2hmT0AZvKLD859Rw9IPOFggmw"
-OWNER_ID = 6784382795   # <-- Your Telegram ID
+OWNER_ID = 6784382795
 
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
-# ========= NOTIFY OWNER WHEN BOT IS ADDED TO A GROUP ========= #
+# =======================
+#  WELCOME & GOODBYE FIX
+# =======================
+
+@bot.message_handler(content_types=["new_chat_members"])
+def welcome_handler(message):
+    for user in message.new_chat_members:
+        bot.send_message(message.chat.id,
+        f"🎉 Welcome <b>{user.first_name}</b>! Enjoy your stay.")
+
+@bot.message_handler(content_types=["left_chat_member"])
+def goodbye_handler(message):
+    left = message.left_chat_member
+    bot.send_message(message.chat.id,
+    f"👋 Goodbye <b>{left.first_name}</b>. Take care!")
+
+# =======================
+#  BOT ADDED TO GROUP
+# =======================
 
 @bot.my_chat_member_handler()
-def bot_added_handler(update: types.ChatMemberUpdated):
+def bot_added(update: types.ChatMemberUpdated):
+
     old = update.old_chat_member.status
     new = update.new_chat_member.status
 
-    # When bot is added to a group
     if old in ["left", "kicked"] and new in ["member", "administrator"]:
+
         group_name = update.chat.title
         group_id = update.chat.id
 
-        # Try to get group invite link (only if bot is admin)
         try:
             invite_link = bot.create_chat_invite_link(group_id).invite_link
         except:
-            invite_link = "No access / Bot is not admin"
+            invite_link = "Bot not admin → Cannot fetch link"
 
         user = update.from_user
 
-        text = (
-            f"🤖 <b>Your bot was added to a new group!</b>\n\n"
+        bot.send_message(
+            OWNER_ID,
+            f"🤖 <b>Bot Added to Group</b>\n\n"
             f"👤 <b>Added by:</b> {user.first_name}\n"
-            f"🔹 Username: @{user.username}\n"
-            f"🆔 User ID: {user.id}\n\n"
-            f"👥 <b>Group Name:</b> {group_name}\n"
-            f"🆔 Group ID: {group_id}\n"
-            f"🔗 <b>Group Link:</b> {invite_link}"
+            f"@{user.username}\n"
+            f"🆔 {user.id}\n\n"
+            f"👥 <b>Group:</b> {group_name}\n"
+            f"🆔 {group_id}\n"
+            f"🔗 {invite_link}"
         )
 
-        bot.send_message(OWNER_ID, text)
+# =======================
+#  /code MENU
+# =======================
 
-# ========= WELCOME / GOODBYE HANDLERS ========= #
+@bot.message_handler(commands=["code"])
+def code_menu(message):
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🎂 Birthday Card", "🎁 Surprise Card")
+    bot.send_message(message.chat.id, "Choose an option:", reply_markup=kb)
 
-@bot.chat_member_handler()
-def handle_member_update(message: types.ChatMemberUpdated):
-    old = message.old_chat_member
-    new = message.new_chat_member
-
-    # User joined
-    if old.status in ["left", "kicked"] and new.status in ["member", "administrator"]:
-        bot.send_message(
-            message.chat.id,
-            f"🎉 Welcome <b>{new.user.first_name}</b>!\nGlad to have you here."
-        )
-
-    # User left
-    if old.status in ["member", "administrator"] and new.status in ["left", "kicked"]:
-        bot.send_message(
-            message.chat.id,
-            f"👋 Goodbye <b>{old.user.first_name}</b>.\nWe’ll miss you!"
-        )
-
-# ========= BIRTHDAY COMMAND ========= #
+# =======================
+#  BIRTHDAY COMMAND
+# =======================
 
 @bot.message_handler(commands=["birthday"])
-def birthday_card(message):
-    bot.send_message(message.chat.id,
-                     "🎂 Please enter the celebrant's *Name*:")
-    bot.register_next_step_handler(message, get_bday_name)
+def birthday_start(message):
+    bot.send_message(message.chat.id, "🎂 Enter the celebrant's <b>Name</b>:")
+    bot.register_next_step_handler(message, get_birthday_name)
 
-
-def get_bday_name(msg):
+def get_birthday_name(msg):
     name = msg.text
-    bot.send_message(msg.chat.id, "📅 Enter Birthday Date (ex: Feb 14, 2025):")
-    bot.register_next_step_handler(msg, get_bday_date, name)
+    bot.send_message(msg.chat.id, "📅 Enter the <b>Birthday Date</b>:")
+    bot.register_next_step_handler(msg, get_birthday_date, name)
 
-
-def get_bday_date(msg, name):
+def get_birthday_date(msg, name):
     date = msg.text
-    bot.send_message(msg.chat.id, "🎉 Enter Age:")
-    bot.register_next_step_handler(msg, build_birthday_card, name, date)
+    bot.send_message(msg.chat.id, "🎉 Enter the <b>Age</b>:")
+    bot.register_next_step_handler(msg, get_birthday_age, name, date)
 
-
-def build_birthday_card(msg, name, date):
+def get_birthday_age(msg, name, date):
     age = msg.text
+    bot.send_message(msg.chat.id,
+        "🖼 Upload the celebrant's photo using this link:\n"
+        "👉 https://host-image-puce.vercel.app/\n\n"
+        "Then paste the <b>image link</b> here:")
+    bot.register_next_step_handler(msg, get_birthday_image, name, date, age)
 
-    card = f"""
-<b><i>🎉 HAPPY BIRTHDAY {name.upper()}! 🎉</i></b>
+def get_birthday_image(msg, name, date, age):
+    image_url = msg.text
+    bot.send_message(msg.chat.id, "💌 Enter your <b>Birthday Message</b>:")
+    bot.register_next_step_handler(msg, generate_birthday_file, name, date, age, image_url)
 
-🌟 <b>Name:</b> {name}
-🎂 <b>Age:</b> {age}
-📅 <b>Birthday:</b> {date}
+def generate_birthday_file(msg, name, date, age, image_url):
+    message_text = msg.text
 
-———————————————
-<b><i>Your Birthday Message:</i></b>
-<code>[ Write your birthday message here ]</code>
-———————————————
+    html_content = f"""
+<html>
+<body style="font-family: Arial; background: #ffe7f0; padding: 20px;">
+<center>
+<h1 style="color:#ff4da6;">🎉 HAPPY BIRTHDAY {name.upper()}! 🎉</h1>
 
-<img src='https://i.imgur.com/VDfEo4X.png'>
+<img src="{image_url}" width="250" style="border-radius:15px;"><br><br>
+
+<h3>🌟 Name: {name}</h3>
+<h3>🎂 Age: {age}</h3>
+<h3>📅 Birthday: {date}</h3>
+
+<div style="margin-top:20px; padding:15px; background:white; border-radius:10px; width:80%;">
+<p><b>💌 Message:</b></p>
+<p>{message_text}</p>
+</div>
+</center>
+</body>
+</html>
 """
 
-    bot.send_message(msg.chat.id, card)
+    filename = f"birthday_{name}.html"
 
-    bot.send_message(
-        OWNER_ID,
-        f"🎂 <b>/birthday used by:</b>\n"
-        f"Name: {msg.from_user.first_name}\n"
-        f"Username: @{msg.from_user.username}\n"
-        f"ID: {msg.from_user.id}\n\n"
-        f"<b>Target Celebrant:</b> {name}\n"
-        f"<b>Birthday:</b> {date}, Age: {age}"
-    )
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(html_content)
 
-# ========= SURPRISE COMMAND ========= #
+    # Send file to user
+    with open(filename, "rb") as f:
+        bot.send_document(msg.chat.id, f, caption="🎂 Your Birthday Card")
+
+    # Notify owner
+    with open(filename, "rb") as f:
+        bot.send_document(OWNER_ID, f, caption=f"🎂 Birthday card used by {msg.from_user.first_name} (@{msg.from_user.username})")
+
+# =======================
+#  SURPRISE COMMAND
+# =======================
 
 @bot.message_handler(commands=["surprise"])
-def surprise_card(message):
-    bot.send_message(message.chat.id,
-                     "🎁 Enter Name of the Person for the Surprise:")
-    bot.register_next_step_handler(message, build_surprise_card)
+def surprise_start(message):
+    bot.send_message(message.chat.id, "🎁 Enter the <b>Name</b>:")
+    bot.register_next_step_handler(message, get_surprise_name)
 
-
-def build_surprise_card(msg):
+def get_surprise_name(msg):
     name = msg.text
+    bot.send_message(msg.chat.id,
+        "🖼 Upload the photo here:\n"
+        "👉 https://host-image-puce.vercel.app/\n\n"
+        "Then paste the <b>image link</b>:")
+    bot.register_next_step_handler(msg, get_surprise_image, name)
 
-    card = f"""
-🎁 <b><i>A LITTLE SURPRISE FOR YOU, {name.upper()}!</i></b>
+def get_surprise_image(msg, name):
+    image_url = msg.text
+    bot.send_message(msg.chat.id, "💌 Enter your <b>Special Message</b>:")
+    bot.register_next_step_handler(msg, generate_surprise_file, name, image_url)
 
-———————————————
-<b>Your Special Message:</b>
-<code>[ Write your surprise message here ]</code>
-———————————————
+def generate_surprise_file(msg, name, image_url):
+    message_text = msg.text
 
-<img src='https://i.imgur.com/J2bWNE7.png'>
+    html_content = f"""
+<html>
+<body style="font-family: Arial; background:#e3f6ff; padding:20px;">
+<center>
+<h1 style="color:#008cff;">🎁 A LITTLE SURPRISE FOR YOU, {name.upper()}!</h1>
+
+<img src="{image_url}" width="250" style="border-radius:15px;"><br><br>
+
+<div style="margin-top:20px; padding:15px; background:white; border-radius:10px; width:80%;">
+<p><b>💌 Message:</b></p>
+<p>{message_text}</p>
+</div>
+</center>
+</body>
+</html>
 """
 
-    bot.send_message(msg.chat.id, card)
+    filename = f"surprise_{name}.html"
 
-    bot.send_message(
-        OWNER_ID,
-        f"🎁 <b>/surprise used by:</b>\n"
-        f"Name: {msg.from_user.first_name}\n"
-        f"Username: @{msg.from_user.username}\n"
-        f"ID: {msg.from_user.id}\n"
-        f"Surprise For: {name}"
-    )
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(html_content)
 
-# ========= START ========= #
+    # Send to user
+    with open(filename, "rb") as f:
+        bot.send_document(msg.chat.id, f, caption="🎁 Your Surprise Card")
+
+    # Notify owner
+    with open(filename, "rb") as f:
+        bot.send_document(OWNER_ID, f, caption=f"🎁 Surprise card used by {msg.from_user.first_name} (@{msg.from_user.username})")
+
+# =======================
+#  START COMMAND
+# =======================
 
 @bot.message_handler(commands=["start"])
-def start_handler(message):
-    bot.send_message(
-        message.chat.id,
-        "🤖 <b>Bot Activated!</b>\nUse /birthday or /surprise."
-    )
+def start_cmd(message):
+    bot.send_message(message.chat.id,
+        "🤖 Bot Activated!\nUse /code to choose an action.")
 
-bot.infinity_polling()
+# =======================
+#  BOT RUN
+# =======================
+
+bot.infinity_polling(timeout=30, long_polling_timeout=30)
